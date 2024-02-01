@@ -1,0 +1,227 @@
+﻿@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Scanner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+
+        #videoContainer {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        #videoElement {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            border-radius: 30px;
+        }
+
+        #scanBtn {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+            height: 75px;
+            width: 20%;
+            border-width: 2px;
+            border-color: blue;
+            border-radius: 15px;
+        }
+
+            #scanBtn:hover {
+                background-color: #45a049;
+            }
+
+        #myModal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        #modalContent {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fefefe;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 20%;
+            text-align: center;
+            border-radius: 15px;
+        }
+
+        #decodedText {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #888;
+            width: 40%;
+            height: 5%;
+            border-radius: 10px;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
+        }
+
+        .infoContainer {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            margin-top: 20px;
+            width: 80%;
+        }
+
+        .infoBox {
+            height: 60px;
+            width: 48%;
+            margin-bottom: 10px;
+            padding: 15px;
+            border: 1px solid #888;
+            border-radius: 15px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>QUÉT MÃ QR CODE</h1>
+
+    <div id="videoContainer">
+        <video id="videoElement" autoplay></video>
+    </div>
+
+    <button id="scanBtn" onclick="enableCamera()">Bắt đầu quét QR</button>
+
+    <div id="myModal">
+        <div id="modalContent">
+            <p style="font-size: 20px">Đang quét...</p>
+        </div>
+    </div>
+
+    <div id="decodedText"></div>
+
+    <div class="infoContainer">
+        <div id="productName" class="infoBox"></div>
+        <div id="releaseDate" class="infoBox"></div>
+        <div id="lotNumber" class="infoBox"></div>
+        <div id="quantity" class="infoBox"></div>
+    </div>
+
+
+    <!-- Bao gồm thư viện jsQR (sử dụng đúng đường dẫn hoặc CDN) -->
+    <!-- Link lấy file js: https://github.com/cozmo/jsQR/blob/master/dist/jsQR.js -->
+    <script src="~/js/jsqr.js"></script>
+
+    <script>
+        const videoElement = document.getElementById('videoElement');
+        const decodedTextElement = document.getElementById('decodedText');
+        const productNameBox = document.getElementById('productName');
+        const releaseDateBox = document.getElementById('releaseDate');
+        const lotNumberBox = document.getElementById('lotNumber');
+        const quantityBox = document.getElementById('quantity');
+        const modal = document.getElementById('myModal');
+        let scanning = false;
+
+        function enableCamera() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function (stream) {
+                        videoElement.srcObject = stream;
+                        modal.style.display = 'none';
+                        startScanning();
+                    })
+                    .catch(function (error) {
+                        console.error('Failed to access camera:', error);
+                    });
+            } else {
+                console.error('Camera không hỗ trợ cho trình duyệt.');
+            }
+        }
+
+        function startScanning() {
+            if (scanning) return;
+
+            modal.style.display = 'block';
+            scanning = true;
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+
+            function scanFrame() {
+                if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+                    canvas.width = videoElement.videoWidth;
+                    canvas.height = videoElement.videoHeight;
+                    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+                    if (code) {
+                        const decodedText = code.data;
+
+                        // Sử dụng biểu thức chính quy để trích xuất thông tin
+                        const regex = /^([^\d]+)(\d{6})-(\d{3})\[(\d+)\]$/;
+                        const matches = decodedText.match(regex);
+
+                        if (matches && matches.length === 5) {
+                            const productName = matches[1];
+                            const releaseDate = matches[2];
+                            const lotNumber = matches[3];
+                            const quantity = matches[4];
+
+                            // Đặt giá trị cho các ô div
+                            productNameBox.innerText = `Tên sản phẩm: ${productName}`;
+                            releaseDateBox.innerText = `Ngày phát hành: ${releaseDate}`;
+                            lotNumberBox.innerText = `Số lot: ${lotNumber}`;
+                            quantityBox.innerText = `Số lượng: ${quantity}`;
+                        }
+
+                        decodedTextElement.innerText = decodedText;
+                        scanning = false;
+                        modal.style.display = 'none';
+                    } else {
+                        requestAnimationFrame(scanFrame);
+                    }
+                } else {
+                    requestAnimationFrame(scanFrame);
+                }
+            }
+
+            requestAnimationFrame(scanFrame);
+        }
+    </script>
+</body>
+
+</html>
